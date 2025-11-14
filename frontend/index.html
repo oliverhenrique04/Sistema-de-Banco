@@ -195,7 +195,11 @@
 </script>
 
 <script>
-const API = "/api";
+const API = window.API_BASE || (
+  window.location.port === '8080'
+    ? '/api'
+    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8000`
+);
 const app = document.getElementById('app');
 
 function toast(message, variant="primary") {
