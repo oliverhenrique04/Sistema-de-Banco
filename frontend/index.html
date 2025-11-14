@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="pt-br" data-bs-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>POMENR • Microcrédito & Pagamentos</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/cosmo/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --brand-primary:#0b3d91;
+      --brand-accent:#00bfa6;
+    }
+    .navbar { background: var(--brand-primary) !important; }
+    .btn-primary, .bg-primary { background-color: var(--brand-primary) !important; border-color: var(--brand-primary) !important; }
+    .btn-outline-primary { border-color: var(--brand-primary) !important; color: var(--brand-primary) !important; }
+    .btn-outline-primary:hover { background: var(--brand-primary) !important; color:#fff !important; }
+    .link-primary { color: var(--brand-primary) !important; }
+
+    .hidden { display:none !important; }
+    .card { border-radius: 1rem; }
+    .form-control, .btn { border-radius: .75rem; }
+    .hero { background: linear-gradient(135deg, rgba(11,61,145,.08), rgba(0,191,166,.10)); border-radius: 1rem; padding: 1rem 1.25rem; margin: 1rem 0;}
+    .nav-link.active { font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="position-fixed top-0 end-0 p-3" style="z-index:1080">
+  <div id="toastContainer"></div>
+</div>
+
+<nav class="navbar navbar-expand-lg navbar-dark shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="#/"><i class="bi bi-bank2 me-2"></i>POMENR</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navContent">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0" id="menu">
+        <li class="nav-item"><a class="nav-link" data-route="#/dashboard" href="#/dashboard">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" data-route="#/pagamentos" href="#/pagamentos">Pagamentos</a></li>
+        <li class="nav-item"><a class="nav-link" data-route="#/emprestimos" href="#/emprestimos">Empréstimos</a></li>
+        <li class="nav-item"><a class="nav-link" data-route="#/relatorios" href="#/relatorios">Relatórios</a></li>
+      </ul>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-light btn-sm" href="/api/docs" target="_blank"><i class="bi bi-journal-code me-1"></i>API</a>
+        <button class="btn btn-outline-light btn-sm" id="themeBtn" title="Tema"><i class="bi bi-moon"></i></button>
+        <button class="btn btn-light btn-sm" id="btnLogout"><i class="bi bi-box-arrow-right me-1"></i>Sair</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="container my-3" id="app"></main>
+
+<!-- TEMPLATES (iguais aos anteriores, com bloco de depósito na guia Pagamentos) -->
+<script type="text/template" id="tpl-login">
+  <div class="hero"><h5 class="mb-0">Bem-vindo ao POMENR</h5><small class="text-muted">Entre para acessar seus produtos</small></div>
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-6 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h4 class="mb-3"><i class="bi bi-person-lock me-2"></i>Entrar</h4>
+          <div class="mb-3"><label class="form-label">CPF/CNPJ</label><input class="form-control" id="login_cpf" placeholder="Somente números"></div>
+          <div class="mb-3"><label class="form-label">Senha</label><input type="password" class="form-control" id="login_senha"></div>
+          <button class="btn btn-primary w-100" id="doLogin">Entrar</button>
+          <hr><p class="text-center small mb-0">Não tem conta? <a href="#/registrar">Registre-se</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/template" id="tpl-register">
+  <div class="hero"><h5 class="mb-0">Abra sua conta POMENR</h5><small class="text-muted">Cadastre-se em poucos passos</small></div>
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h4 class="mb-3"><i class="bi bi-person-plus me-2"></i>Criar conta</h4>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Nome</label><input id="r_nome" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">CPF/CNPJ</label><input id="r_cpf" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Email</label><input id="r_email" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Telefone</label><input id="r_tel" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Senha</label><input type="password" id="r_senha" class="form-control" minlength="8"></div>
+            <div class="col-md-6"><label class="form-label">Salário mensal (¢)</label><input id="r_sal" class="form-control" value="300000"></div>
+          </div>
+          <button class="btn btn-primary mt-3" id="doRegister">Registrar</button>
+          <a href="#/login" class="btn btn-link">Já tenho conta</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/template" id="tpl-dashboard">
+  <div class="hero">
+    <h5 class="mb-1">Gastos do mês</h5>
+    <small class="text-muted">Gerencie sua planilha de despesas e visualize por categoria</small>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm"><div class="card-body">
+        <h5 class="mb-3"><i class="bi bi-table me-2"></i>Planilha de gastos</h5>
+        <div class="row g-2">
+          <div class="col-5"><input id="ex_desc" class="form-control" placeholder="Descrição"></div>
+          <div class="col-3"><input id="ex_cat" class="form-control" placeholder="Categoria"></div>
+          <div class="col-3"><input id="ex_val" class="form-control" placeholder="Valor (R$)" type="number" step="0.01"></div>
+          <div class="col-1 d-grid"><button class="btn btn-primary" id="ex_add"><i class="bi bi-plus-lg"></i></button></div>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-sm table-striped">
+            <thead><tr><th>Descrição</th><th>Categoria</th><th class="text-end">Valor</th><th></th></tr></thead>
+            <tbody id="ex_body"></tbody>
+            <tfoot><tr><th colspan="2">Total</th><th class="text-end" id="ex_total">R$ 0,00</th><th></th></tr></tfoot>
+          </table>
+        </div>
+      </div></div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm"><div class="card-body">
+        <h5 class="mb-3"><i class="bi bi-pie-chart me-2"></i>Gastos por categoria</h5>
+        <canvas id="ex_chart" height="220"></canvas>
+      </div></div>
+      <div class="card shadow-sm mt-3"><div class="card-body">
+        <h6 class="text-muted">Resumo da conta</h6>
+        <div id="d_conta" class="small mb-1">Conta —</div>
+        <div id="d_saldo" class="fw-bold">R$ 0,00</div>
+      </div></div>
+    </div>
+  </div>
+</script>
+
+<script type="text/template" id="tpl-pagamentos">
+  <div class="hero"><h5 class="mb-0">Pagamentos</h5><small class="text-muted">Pague estabelecimentos com sua conta</small></div>
+
+  <div class="alert alert-info d-flex justify-content-between align-items-center">
+    <div><i class="bi bi-wallet2 me-2"></i>Adicionar saldo à conta</div>
+    <div class="d-flex gap-2">
+      <input id="dep_val" class="form-control form-control-sm" style="width:180px" placeholder="Valor (¢)" value="50000">
+      <button class="btn btn-sm btn-outline-primary" id="doDeposit"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm"><div class="card-body">
+        <h5 class="mb-3"><i class="bi bi-receipt me-2"></i>Novo pagamento</h5>
+        <div class="row g-2">
+          <div class="col-md-4"><label class="form-label">ID Comerciante</label><input id="p_mid" class="form-control" value="1"></div>
+          <div class="col-md-4"><label class="form-label">Valor (¢)</label><input id="p_val" class="form-control" value="5000"></div>
+          <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary w-100" id="doPay"><i class="bi bi-cash-coin me-1"></i>Pagar</button></div>
+        </div>
+        <div class="mt-3" id="p_msg"></div>
+      </div></div>
+    </div>
+  </div>
+</script>
+
+<script type="text/template" id="tpl-emprestimos">
+  <div class="hero"><h5 class="mb-0">Empréstimos</h5><small class="text-muted">Simule seu limite e solicite</small></div>
+  <div class="row">
+    <div class="col-12 col-lg-10">
+      <div class="card shadow-sm"><div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-4"><label class="form-label">Juros a.a. (%)</label><input id="e_j" class="form-control" value="35"></div>
+          <div class="col-md-4"><label class="form-label">Prazo (meses)</label><input id="e_m" class="form-control" value="12"></div>
+          <div class="col-md-4 d-flex align-items-end"><button class="btn btn-outline-primary w-100" id="doSim"><i class="bi bi-calculator me-1"></i>Simular limite</button></div>
+        </div>
+        <div id="e_sim" class="mt-3 text-muted"></div>
+        <hr>
+        <div class="row g-2">
+          <div class="col-md-6"><label class="form-label">Valor solicitado (¢)</label><input id="e_val" class="form-control" value="1000000"></div>
+          <div class="col-md-6 d-flex align-items-end"><button class="btn btn-primary w-100" id="doLoan"><i class="bi bi-cash-stack me-1"></i>Solicitar</button></div>
+        </div>
+        <div class="mt-3" id="e_msg"></div>
+      </div></div>
+    </div>
+  </div>
+</script>
+
+<script type="text/template" id="tpl-relatorios">
+  <div class="hero"><h5 class="mb-0">Relatórios</h5><small class="text-muted">Faturamento mensal por comerciante</small></div>
+  <div class="card shadow-sm"><div class="card-body">
+    <button class="btn btn-outline-primary" id="doReport"><i class="bi bi-graph-up me-1"></i>Consultar</button>
+    <div id="r_table" class="table-responsive mt-3 hidden">
+      <table class="table table-sm table-striped">
+        <thead><tr><th>Comerciante</th><th>Mês</th><th>Qtde</th><th>Total (¢)</th></tr></thead>
+        <tbody id="r_body"></tbody>
+      </table>
+    </div>
+  </div></div>
+</script>
+
+<script>
+const API = "/api";
+const app = document.getElementById('app');
+
+function toast(message, variant="primary") {
+  const id = "t" + Math.random().toString(36).slice(2);
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = "toast align-items-center text-bg-" + variant + " border-0";
+  el.id = id;
+  el.role = "alert";
+  el.ariaLive = "assertive";
+  el.ariaAtomic = "true";
+  el.innerHTML = `<div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>`;
+  container.appendChild(el);
+  const t = new bootstrap.Toast(el, { delay: 3500 });
+  t.show();
+  el.addEventListener('hidden.bs.toast', () => el.remove());
+}
+
+function setThemeToggle(){
+  document.getElementById('themeBtn').onclick = () => {
+    const html = document.documentElement;
+    const cur = html.getAttribute('data-bs-theme') || 'light';
+    const next = cur === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-bs-theme', next);
+    document.getElementById('themeBtn').innerHTML = next === 'dark' ? '<i class="bi bi-sun"></i>' : '<i class="bi bi-moon"></i>';
+  };
+}
+setThemeToggle();
+
+function token(){ return localStorage.getItem('user_id'); }
+function authHeaders(){ return token() ? {'X-User-Id': token()} : {}; }
+
+async function post(path, body){
+  const r = await fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body)});
+  const data = await r.json().catch(()=> ({}));
+  if(!r.ok){
+    let msg = r.statusText;
+    if (data && data.detail){
+      if (Array.isArray(data.detail)) {
+        msg = data.detail.map(d => d.msg || d.error || JSON.stringify(d)).join('; ');
+      } else if (typeof data.detail === 'object') {
+        msg = data.detail.msg || data.detail.error || JSON.stringify(data.detail);
+      } else {
+        msg = data.detail;
+      }
+    }
+    throw new Error(msg);
+  }
+  return data;
+}
+async function get(path){
+  const r = await fetch(API+path, {headers:{...authHeaders()}});
+  const data = await r.json().catch(()=> ({}));
+  if(!r.ok){
+    let msg = r.statusText;
+    if (data && data.detail){
+      if (Array.isArray(data.detail)) msg = data.detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+      else if (typeof data.detail === 'object') msg = data.detail.msg || JSON.stringify(data.detail);
+      else msg = data.detail;
+    }
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function render(tplId){ app.innerHTML = document.getElementById(tplId).innerHTML; }
+
+function requireAuth(){ if(!token()){ location.hash = '#/login'; return false; } return true; }
+
+function setActiveLink(){
+  const h = location.hash || '#/login';
+  document.querySelectorAll('#menu .nav-link').forEach(a => {
+    a.classList.toggle('active', h.startsWith(a.getAttribute('data-route')));
+    a.classList.toggle('disabled', !token());
+  });
+  document.getElementById('btnLogout').onclick = () => { localStorage.removeItem('user_id'); location.hash = '#/login'; };
+}
+
+/* ---- DASHBOARD: gastos locais + resumo de conta ---- */
+let exChart = null;
+function loadExpenses(){ try { return JSON.parse(localStorage.getItem('pomenr_expenses') || '[]'); } catch { return []; } }
+function saveExpenses(rows){ localStorage.setItem('pomenr_expenses', JSON.stringify(rows)); }
+function renderExpenses(){
+  const rows = loadExpenses();
+  const body = document.getElementById('ex_body');
+  const cur = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+  body.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${r.desc}</td>
+      <td>${r.cat}</td>
+      <td class="text-end">${cur.format(r.val)}</td>
+      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="${i}"><i class="bi bi-trash"></i></button></td>
+    </tr>`).join('');
+  const total = rows.reduce((s,r)=>s + r.val, 0);
+  document.getElementById('ex_total').innerText = cur.format(total);
+
+  const byCat = {};
+  rows.forEach(r => byCat[r.cat] = (byCat[r.cat]||0) + r.val);
+  const labels = Object.keys(byCat);
+  const data = Object.values(byCat);
+
+  if(exChart){ exChart.destroy(); }
+  const ctx = document.getElementById('ex_chart').getContext('2d');
+  exChart = new Chart(ctx, { type: 'pie', data: { labels, datasets: [{ data }] } });
+}
+
+async function showDashboard(){
+  if(!requireAuth()) return;
+  render('tpl-dashboard');
+
+  try{
+    const sum = await get('/me/summary/'+token());
+    if(sum && sum.numero_conta){
+      document.getElementById('d_saldo').innerText = (sum.saldo_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      document.getElementById('d_conta').innerText = `Conta ${sum.numero_conta} • Agência ${sum.agencia}`;
+    }
+  }catch(e){ /* silencioso */ }
+
+  renderExpenses();
+  document.getElementById('ex_add').onclick = () => {
+    const desc = document.getElementById('ex_desc').value.trim();
+    const cat  = (document.getElementById('ex_cat').value.trim() || 'Outros');
+    const val  = parseFloat(document.getElementById('ex_val').value || '0');
+    if(!desc || !val){ toast('Preencha descrição e valor.', 'warning'); return; }
+    const rows = loadExpenses(); rows.push({desc, cat, val}); saveExpenses(rows);
+    document.getElementById('ex_desc').value = ''; document.getElementById('ex_val').value  = '';
+    renderExpenses();
+  };
+  document.getElementById('ex_body').addEventListener('click', e => {
+    const i = e.target.closest('[data-del]')?.getAttribute('data-del');
+    if(i !== null && i !== undefined){ const rows = loadExpenses(); rows.splice(Number(i),1); saveExpenses(rows); renderExpenses(); }
+  });
+}
+
+/* ---- PÁGINAS ---- */
+function showLogin(){
+  render('tpl-login');
+  document.getElementById('doLogin').onclick = async () => {
+    try{
+      const cpf = document.getElementById('login_cpf').value.trim();
+      const senha = document.getElementById('login_senha').value;
+      const res = await post('/auth/login', {doc_cpf_cnpj: cpf, senha});
+      localStorage.setItem('user_id', res.id_usuario);
+      toast('Bem-vindo! Login realizado.', 'success');
+      location.hash = '#/dashboard';
+    }catch(e){ toast('Falha no login: ' + e.message, 'danger'); }
+  };
+}
+
+function showRegister(){
+  render('tpl-register');
+  document.getElementById('doRegister').onclick = async () => {
+    try{
+      const body = {
+        nome: document.getElementById('r_nome').value,
+        doc_cpf_cnpj: document.getElementById('r_cpf').value,
+        email: document.getElementById('r_email').value,
+        telefone: document.getElementById('r_tel').value,
+        senha: document.getElementById('r_senha').value,
+        salario_mensal_cents: parseInt(document.getElementById('r_sal').value || '0')
+      };
+      const res = await post('/auth/register', body);
+      localStorage.setItem('user_id', res.id_usuario);
+      toast('Cadastro concluído!', 'success');
+      location.hash = '#/dashboard';
+    }catch(e){ toast('Falha ao registrar: ' + e.message, 'danger'); }
+  };
+}
+
+function showPagamentos(){
+  if(!requireAuth()) return;
+  render('tpl-pagamentos');
+
+  // Depósito
+  document.getElementById('doDeposit').onclick = async () => {
+    try{
+      const v = parseInt(document.getElementById('dep_val').value || '0');
+      if(!v || v <= 0){ toast('Informe um valor válido (em centavos).', 'warning'); return; }
+      await post('/accounts/deposit', { valor_cents: v, referencia: 'DEP-UI' });
+      toast('Depósito realizado com sucesso!', 'success');
+    }catch(e){
+      toast('Falha no depósito: ' + e.message, 'danger');
+    }
+  };
+
+  // Pagamento
+  document.getElementById('doPay').onclick = async () => {
+    try{
+      const body = { id_conta_de: 0, id_comerciante: parseInt(document.getElementById('p_mid').value), valor_cents: parseInt(document.getElementById('p_val').value) };
+      await post('/payments', body);
+      const m = document.getElementById('p_msg'); m.className = 'text-success'; m.innerText = 'Pagamento efetuado com sucesso.';
+    }catch(e){
+      const m = document.getElementById('p_msg'); m.className = 'text-danger'; m.innerText = 'Erro: '+e.message;
+    }
+  };
+}
+
+function showEmprestimos(){
+  if(!requireAuth()) return;
+  render('tpl-emprestimos');
+  document.getElementById('doSim').onclick = async () => {
+    try{
+      const body = { juros_aa_pct: parseFloat(document.getElementById('e_j').value), prazo_meses: parseInt(document.getElementById('e_m').value) };
+      const sim = await post('/loans/simulate', body);
+      const jm = sim.juros_mensal_pct;
+      document.getElementById('e_sim').innerText = `Juros mensal aprox.: ${jm.toFixed(3)}% • Parcela máx.: ¢${sim.parcela_max_cents.toLocaleString('pt-BR')} • Principal máx.: ¢${sim.principal_max_cents.toLocaleString('pt-BR')}`;
+    }catch(e){
+      document.getElementById('e_sim').innerText = 'Erro: '+e.message;
+      document.getElementById('e_sim').classList.add('text-danger');
+    }
+  };
+  document.getElementById('doLoan').onclick = async () => {
+    try{
+      const body = {
+        id_conta: 0,
+        principal_cents: parseInt(document.getElementById('e_val').value),
+        juros_aa_pct: parseFloat(document.getElementById('e_j').value),
+        prazo_meses: parseInt(document.getElementById('e_m').value)
+      };
+      const res = await post('/loans/create', body);
+      const m = document.getElementById('e_msg'); m.className = 'text-success'; m.innerText = 'Empréstimo criado. ID '+res.id_emprestimo;
+    }catch(e){
+      const m = document.getElementById('e_msg'); m.className = 'text-danger'; m.innerText = 'Erro: '+e.message;
+    }
+  };
+}
+
+function showRelatorios(){
+  if(!requireAuth()) return;
+  render('tpl-relatorios');
+  document.getElementById('doReport').onclick = async () => {
+    try{
+      const rows = await get('/reports/faturamento-mensal');
+      const body = document.getElementById('r_body');
+      body.innerHTML = rows.map(r => `<tr><td>${r.nome_fantasia}</td><td>${r.mes}</td><td>${r.qtde}</td><td>${r.total_cents.toLocaleString('pt-BR')}</td></tr>`).join('');
+      document.getElementById('r_table').classList.remove('hidden');
+    }catch(e){
+      toast('Erro ao carregar relatório: ' + e.message, 'danger');
+    }
+  };
+}
+
+/* ---- Router ---- */
+function router(){
+  setActiveLink();
+  const h = location.hash || '#/login';
+  if(h.startsWith('#/dashboard')) return showDashboard();
+  if(h.startsWith('#/pagamentos')) return showPagamentos();
+  if(h.startsWith('#/emprestimos')) return showEmprestimos();
+  if(h.startsWith('#/relatorios')) return showRelatorios();
+  if(h.startsWith('#/registrar')) return showRegister();
+  return showLogin();
+}
+window.addEventListener('hashchange', router);
+router();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
