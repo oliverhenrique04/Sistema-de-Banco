@@ -1,13 +1,13 @@
-
 -- População & Consultas & Avançado
 
--- 10 usuários
-INSERT INTO tb_usuario (nome, email, telefone, doc_cpf_cnpj)
+-- 10 usuários (COM TIPO_PESSOA)
+INSERT INTO tb_usuario (nome, email, telefone, doc_cpf_cnpj, tipo_pessoa)
 SELECT
   'Usuário ' || g,
   'user' || g || '@demo.com',
   '+55 11 9' || LPAD((10000000+g)::text,8,'0'),
-  '0000000000' || g::text
+  '0000000000' || g::text,
+  CASE WHEN g <= 5 THEN 'PF' ELSE 'PJ' END
 FROM generate_series(1,10) g;
 
 -- Endereços
@@ -20,6 +20,16 @@ FROM tb_usuario;
 INSERT INTO tb_comerciante (nome_fantasia, cnpj, mcc)
 SELECT 'Loja '||g, '1111111111'||g::text, '5999'
 FROM generate_series(1,10) g;
+
+-- Adicionado empresas específicas para categorias essenciais e lazer
+INSERT INTO tb_comerciante (nome_fantasia, cnpj, mcc) VALUES
+('Super Mercado Central', '222222222201', '5411'),
+('Imobiliaria Novo Lar', '333333333301', '6513'),
+('Internet & TV SA', '444444444401', '4814'), -- ID 13
+('Cinema Pop', '555555555501', '7832'),
+('Uber BR', '666666666601', '4121'),
+('Cia de Eletricidade', '777777777701', '4900'), -- ID 11
+('Saneamento Basico', '888888888801', '4900'); -- ID 12
 
 -- Contas
 INSERT INTO tb_conta (id_usuario, numero_conta, agencia, saldo_cents)
@@ -123,7 +133,7 @@ CREATE OR REPLACE FUNCTION fn_valida_saldo() RETURNS trigger AS $$
 DECLARE
   saldo_atual BIGINT;
 BEGIN
-  IF NEW.tipo IN ('withdrawal','transfer','payment','fee') AND NEW.status = 'confirmed' THEN
+  IF NEW.tipo IN ('withdrawal','transfer','payment','fee', 'loan_repayment') AND NEW.status = 'confirmed' THEN
     IF NEW.id_conta_de IS NULL THEN
       RAISE EXCEPTION 'Transação requer conta de origem';
     END IF;
@@ -135,7 +145,7 @@ BEGIN
     IF NEW.id_conta_para IS NOT NULL THEN
       UPDATE tb_conta SET saldo_cents = saldo_cents + NEW.valor_cents WHERE id_conta = NEW.id_conta_para;
     END IF;
-  ELSIF NEW.tipo IN ('deposit','loan_disbursement','loan_repayment') AND NEW.status='confirmed' THEN
+  ELSIF NEW.tipo IN ('deposit','loan_disbursement') AND NEW.status='confirmed' THEN
     IF NEW.id_conta_para IS NULL THEN
       RAISE EXCEPTION 'Transação de crédito requer conta de destino';
     END IF;
@@ -232,6 +242,36 @@ BEGIN
   VALUES (p_id_conta, (SELECT id_conta FROM tb_emprestimo WHERE id_emprestimo=v_emp), 'loan_repayment', v_valor, 'confirmed', 'PARC-'||p_id_parcela);
 
   UPDATE tb_parcela SET pago = TRUE, pago_em = now() WHERE id_parcela = p_id_parcela;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE sp_quitar_emprestimo(p_id_emprestimo BIGINT, p_id_conta_pagadora BIGINT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_valor_total BIGINT;
+  v_conta_credora BIGINT;
+BEGIN
+  SELECT e.id_conta, COALESCE(SUM(p.valor_cents), 0)
+    INTO v_conta_credora, v_valor_total
+  FROM tb_emprestimo e
+  LEFT JOIN tb_parcela p ON e.id_emprestimo = p.id_emprestimo AND p.pago = FALSE
+  WHERE e.id_emprestimo = p_id_emprestimo
+  GROUP BY e.id_conta;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Empréstimo % não encontrado.', p_id_emprestimo;
+  END IF;
+
+  IF v_valor_total = 0 THEN
+    RAISE EXCEPTION 'Empréstimo % já quitado ou não possui parcelas pendentes.', p_id_emprestimo;
+  END IF;
+
+  INSERT INTO tb_transacao (id_conta_de, id_conta_para, tipo, valor_cents, status, referencia)
+  VALUES (p_id_conta_pagadora, v_conta_credora, 'loan_repayment', v_valor_total, 'confirmed', 'QUITAR-EMP-'||p_id_emprestimo);
+
+  UPDATE tb_parcela SET pago = TRUE, pago_em = now()
+  WHERE id_emprestimo = p_id_emprestimo AND pago = FALSE;
 END;
 $$;
 

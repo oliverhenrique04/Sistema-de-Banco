@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS tb_usuario (
   email             VARCHAR(120) NOT NULL UNIQUE,
   telefone          VARCHAR(20),
   doc_cpf_cnpj      VARCHAR(20) NOT NULL UNIQUE,
+  -- NOVO: Coluna para identificar PF ou PJ
+  tipo_pessoa       VARCHAR(2) NOT NULL DEFAULT 'PF',
   criado_em         TIMESTAMP NOT NULL DEFAULT now()
 );
 
